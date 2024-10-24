@@ -51,17 +51,7 @@ async function extractTailwindClasses() {
         node.name.getText(sourceFile) === "className" &&
         node.initializer
       ) {
-        if (ts.isStringLiteral(node.initializer)) {
-          // Handles className="..."
-          classNameNodes.push(node);
-        } else if (
-          ts.isJsxExpression(node.initializer) &&
-          node.initializer.expression &&
-          ts.isStringLiteral(node.initializer.expression)
-        ) {
-          // Handles className={"..."}
-          classNameNodes.push(node);
-        }
+        classNameNodes.push(node);
       }
       ts.forEachChild(node, findClassNames);
     }
@@ -72,37 +62,68 @@ async function extractTailwindClasses() {
 
     for (const classNameNode of classNameNodes) {
       const initializer = classNameNode.initializer!;
-      let classNameText: string;
+      let classNames: string[] = [];
       let start: number;
       let end: number;
 
       if (ts.isStringLiteral(initializer)) {
         // className="..."
-        classNameText = initializer.text;
+        classNames = initializer.text.split(/\s+/);
         start = initializer.getStart(sourceFile);
         end = initializer.getEnd();
-      } else if (
-        ts.isJsxExpression(initializer) &&
-        initializer.expression &&
-        ts.isStringLiteral(initializer.expression)
-      ) {
-        // className={"..."}
-        classNameText = initializer.expression.text;
-        start = initializer.getStart(sourceFile);
-        end = initializer.getEnd();
+      } else if (ts.isJsxExpression(initializer) && initializer.expression) {
+        if (ts.isStringLiteral(initializer.expression)) {
+          // className={"..."}
+          classNames = initializer.expression.text.split(/\s+/);
+          start = initializer.getStart(sourceFile);
+          end = initializer.getEnd();
+        } else if (ts.isCallExpression(initializer.expression)) {
+          const callExpr = initializer.expression;
+          const functionName = callExpr.expression.getText(sourceFile);
+
+          if (functionName === "twJoin") {
+            // className={twJoin("...", "...")}
+            const args = callExpr.arguments;
+            let canProcess = true;
+
+            for (const arg of args) {
+              if (ts.isStringLiteral(arg)) {
+                classNames.push(...arg.text.split(/\s+/));
+              } else {
+                // Contains non-string arguments; skip processing
+                canProcess = false;
+                break;
+              }
+            }
+
+            if (!canProcess) {
+              continue;
+            }
+
+            start = initializer.getStart(sourceFile);
+            end = initializer.getEnd();
+          } else {
+            // Unsupported function call; skip processing
+            continue;
+          }
+        } else {
+          // Unsupported initializer; skip processing
+          continue;
+        }
       } else {
-        // Unsupported initializer
+        // Unsupported initializer; skip processing
         continue;
       }
 
       // Process the class names
-      const { baseClasses, mediaClassesMap } = separateClasses(classNameText);
+      const { baseClasses, mediaClassesMap } = separateClasses(classNames);
 
-      // Skip if there are no media classes
+      // Skip if there are no media classes (optional)
       if (Object.keys(mediaClassesMap).length === 0) {
         continue;
       }
 
+      // Build the class parts
       const classParts = [];
       if (baseClasses.length > 0) {
         classParts.push(`"${baseClasses.join(" ")}"`);
@@ -145,11 +166,10 @@ async function extractTailwindClasses() {
   }
 }
 
-function separateClasses(classNameText: string): {
+function separateClasses(classNames: string[]): {
   baseClasses: string[];
   mediaClassesMap: { [prefix: string]: string[] };
 } {
-  const classes = classNameText.split(/\s+/);
   const mediaPrefixes = [
     "mobile:",
     "tablet:",
@@ -164,7 +184,7 @@ function separateClasses(classNameText: string): {
   const baseClasses: string[] = [];
   const mediaClassesMap: { [prefix: string]: string[] } = {};
 
-  for (const cls of classes) {
+  for (const cls of classNames) {
     const prefix = mediaPrefixes.find((p) => cls.startsWith(p));
     if (prefix) {
       if (!mediaClassesMap[prefix]) {
