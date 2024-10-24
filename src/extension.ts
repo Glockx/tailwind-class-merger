@@ -96,10 +96,10 @@ async function extractTailwindClasses() {
       }
 
       // Process the class names
-      const { baseClasses, mediaClasses } = separateClasses(classNameText);
+      const { baseClasses, mediaClassesMap } = separateClasses(classNameText);
 
       // Skip if there are no media classes
-      if (mediaClasses.length === 0) {
+      if (Object.keys(mediaClassesMap).length === 0) {
         continue;
       }
 
@@ -107,8 +107,13 @@ async function extractTailwindClasses() {
       if (baseClasses.length > 0) {
         classParts.push(`"${baseClasses.join(" ")}"`);
       }
-      if (mediaClasses.length > 0) {
-        classParts.push(`"${mediaClasses.join(" ")}"`);
+
+      // Add each group of media classes
+      for (const prefix in mediaClassesMap) {
+        const classes = mediaClassesMap[prefix];
+        if (classes.length > 0) {
+          classParts.push(`"${classes.join(" ")}"`);
+        }
       }
 
       const newClassName = `{twJoin(
@@ -142,7 +147,7 @@ async function extractTailwindClasses() {
 
 function separateClasses(classNameText: string): {
   baseClasses: string[];
-  mediaClasses: string[];
+  mediaClassesMap: { [prefix: string]: string[] };
 } {
   const classes = classNameText.split(/\s+/);
   const mediaPrefixes = [
@@ -157,17 +162,21 @@ function separateClasses(classNameText: string): {
   ];
 
   const baseClasses: string[] = [];
-  const mediaClasses: string[] = [];
+  const mediaClassesMap: { [prefix: string]: string[] } = {};
 
   for (const cls of classes) {
-    if (mediaPrefixes.some((prefix) => cls.startsWith(prefix))) {
-      mediaClasses.push(cls);
+    const prefix = mediaPrefixes.find((p) => cls.startsWith(p));
+    if (prefix) {
+      if (!mediaClassesMap[prefix]) {
+        mediaClassesMap[prefix] = [];
+      }
+      mediaClassesMap[prefix].push(cls);
     } else {
       baseClasses.push(cls);
     }
   }
 
-  return { baseClasses, mediaClasses };
+  return { baseClasses, mediaClassesMap };
 }
 
 async function ensureImportStatement(
