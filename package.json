@@ -1,9 +1,17 @@
 {
-  "name": "tailwind-class-merger",
-  "displayName": "Tailwind Class Merger",
-  "description": "Extracts and organizes Tailwind CSS classes in className attributes.",
+  "name": "tailwind-class-merger-extension",
+  "displayName": "Tailwind Media-Size Class Merger",
+  "description": "Merge and organizes similar media size Tailwind CSS classes in className attributes.",
   "version": "1.0.0",
   "publisher": "NijatMuzaffarli",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/glockx/tailwind-class-merger.git"
+  },
+  "bugs": {
+    "url": "https://github.com/glockx/tailwind-class-merger/issues"
+  },
   "keywords": [
     "tailwindcss",
     "react",
